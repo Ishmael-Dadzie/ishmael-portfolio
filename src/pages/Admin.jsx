@@ -13,6 +13,7 @@ export default function Admin() {
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState('project')
   const [file, setFile] = useState(null)
+  const [docFile, setDocFile] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState('')
   const [files, setFiles] = useState([])
@@ -53,6 +54,25 @@ export default function Admin() {
     await supabase.auth.signOut()
   }
 
+  // Helper: upload any file to storage, return { url, name }
+  async function uploadToStorage(fileObj, folder) {
+    const ext = fileObj.name.split('.').pop()
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const path = `${folder}/${fileName}`
+
+    const { error: upErr } = await supabase.storage
+      .from('portfolio-files')
+      .upload(path, fileObj)
+
+    if (upErr) throw upErr
+
+    const { data } = supabase.storage
+      .from('portfolio-files')
+      .getPublicUrl(path)
+
+    return { url: data.publicUrl, name: fileObj.name }
+  }
+
   async function handleUpload(e) {
     e.preventDefault()
     if (!file || !title) {
@@ -62,65 +82,81 @@ export default function Admin() {
     setUploading(true)
     setMessage('')
 
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`
-    const filePath = `${category}/${fileName}`
+    try {
+      // 1. Upload main file
+      const main = await uploadToStorage(file, category)
 
-    const { error: upErr } = await supabase.storage
-      .from('portfolio-files')
-      .upload(filePath, file)
+      // 2. Upload documentation if provided
+      let doc = { url: null, name: null }
+      if (docFile) {
+        doc = await uploadToStorage(docFile, `${category}-docs`)
+      }
 
-    if (upErr) {
-      setMessage('Upload failed: ' + upErr.message)
-      setUploading(false)
-      return
+      // 3. Save row in DB
+      const { error: dbErr } = await supabase.from('files').insert({
+        title,
+        description,
+        category,
+        file_url: main.url,
+        file_name: main.name,
+        file_type: file.type,
+        doc_url: doc.url,
+        doc_name: doc.name,
+      })
+
+      if (dbErr) {
+        setMessage('Saved file but DB error: ' + dbErr.message)
+      } else {
+        setMessage('✅ Uploaded successfully!')
+        setTitle('')
+        setDescription('')
+        setFile(null)
+        setDocFile(null)
+        e.target.reset()
+        loadFiles()
+      }
+    } catch (err) {
+      setMessage('Upload failed: ' + err.message)
     }
 
-    const { data: urlData } = supabase.storage
-      .from('portfolio-files')
-      .getPublicUrl(filePath)
-
-    const { error: dbErr } = await supabase.from('files').insert({
-      title,
-      description,
-      category,
-      file_url: urlData.publicUrl,
-      file_name: file.name,
-      file_type: file.type,
-    })
-
-    if (dbErr) {
-      setMessage('Saved file but DB error: ' + dbErr.message)
-    } else {
-      setMessage('✅ Uploaded successfully!')
-      setTitle('')
-      setDescription('')
-      setFile(null)
-      e.target.reset()
-      loadFiles()
-    }
     setUploading(false)
   }
 
-  async function handleDelete(id, fileUrl) {
+  async function handleDelete(id, fileUrl, docUrl) {
     if (!confirm('Delete this file permanently?')) return
 
-    // Extract path after bucket name
-    const path = fileUrl.split('/portfolio-files/')[1]
-    await supabase.storage.from('portfolio-files').remove([path])
+    // Delete main file
+    if (fileUrl) {
+      const path = fileUrl.split('/portfolio-files/')[1]
+      if (path) await supabase.storage.from('portfolio-files').remove([path])
+    }
+
+    // Delete doc file if it exists
+    if (docUrl) {
+      const docPath = docUrl.split('/portfolio-files/')[1]
+      if (docPath) await supabase.storage.from('portfolio-files').remove([docPath])
+    }
+
     await supabase.from('files').delete().eq('id', id)
     loadFiles()
   }
 
   if (loading) {
-    return <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">Loading…</div>
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+        Loading…
+      </div>
+    )
   }
 
   // ---- LOGIN VIEW ----
   if (!session) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center px-6">
-        <form onSubmit={handleLogin} className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-8">
+        <form
+          onSubmit={handleLogin}
+          className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-8"
+        >
           <h1 className="text-2xl font-bold mb-6 text-center">Admin Login</h1>
           <input
             type="email"
@@ -165,7 +201,10 @@ export default function Admin() {
         </div>
 
         {/* Upload form */}
-        <form onSubmit={handleUpload} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-10">
+        <form
+          onSubmit={handleUpload}
+          className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-10"
+        >
           <h2 className="text-xl font-semibold mb-6">Upload New File</h2>
 
           <div className="grid md:grid-cols-2 gap-4 mb-4">
@@ -196,11 +235,23 @@ export default function Admin() {
             className="w-full mb-4 px-4 py-3 rounded-lg bg-slate-800 border border-slate-700 focus:border-cyan-400 outline-none resize-none"
           />
 
+          <label className="block text-sm text-slate-400 mb-2">
+            Main file (required)
+          </label>
           <input
             type="file"
             onChange={(e) => setFile(e.target.files[0])}
             className="w-full mb-4 text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-cyan-500 file:text-slate-950 file:font-semibold hover:file:bg-cyan-400"
             required
+          />
+
+          <label className="block text-sm text-slate-400 mb-2">
+            Documentation file (optional — PDF, DOCX, etc.)
+          </label>
+          <input
+            type="file"
+            onChange={(e) => setDocFile(e.target.files[0])}
+            className="w-full mb-4 text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-600 file:text-white file:font-semibold hover:file:bg-slate-500"
           />
 
           <button
@@ -215,7 +266,9 @@ export default function Admin() {
         </form>
 
         {/* Files list */}
-        <h2 className="text-xl font-semibold mb-4">Uploaded Files ({files.length})</h2>
+        <h2 className="text-xl font-semibold mb-4">
+          Uploaded Files ({files.length})
+        </h2>
         <div className="space-y-3">
           {files.map((f) => (
             <div
@@ -226,9 +279,10 @@ export default function Admin() {
                 <p className="font-medium truncate">{f.title}</p>
                 <p className="text-xs text-slate-500">
                   {f.category} • {f.file_name}
+                  {f.doc_name && <> • 📄 {f.doc_name}</>}
                 </p>
               </div>
-              <div className="flex gap-2 shrink-0">
+              <div className="flex gap-3 shrink-0">
                 <a
                   href={f.file_url}
                   target="_blank"
@@ -237,8 +291,18 @@ export default function Admin() {
                 >
                   View
                 </a>
+                {f.doc_url && (
+                  <a
+                    href={f.doc_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-cyan-400 hover:text-cyan-300 text-sm"
+                  >
+                    Docs
+                  </a>
+                )}
                 <button
-                  onClick={() => handleDelete(f.id, f.file_url)}
+                  onClick={() => handleDelete(f.id, f.file_url, f.doc_url)}
                   className="text-red-400 hover:text-red-300 text-sm"
                 >
                   Delete

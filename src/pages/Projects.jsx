@@ -38,18 +38,41 @@ export default function Projects() {
               className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col hover:border-cyan-500/50 transition"
             >
               <h3 className="text-lg font-semibold mb-2">{f.title}</h3>
+
               {f.description && (
                 <p className="text-slate-400 text-sm mb-4 flex-1">{f.description}</p>
               )}
-              <p className="text-xs text-slate-500 mb-4 truncate">{f.file_name}</p>
-              <a
-                href={f.file_url}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-auto inline-block text-center bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold py-2 px-4 rounded-lg transition text-sm"
-              >
-                Download / View
-              </a>
+
+              <p className="text-xs text-slate-500 mb-4 truncate">
+                📦 {f.file_name}
+              </p>
+
+              {f.doc_name && (
+                <p className="text-xs text-slate-500 mb-4 truncate">
+                  📄 {f.doc_name}
+                </p>
+              )}
+
+              <div className="mt-auto flex gap-2">
+                <a
+                  href={f.file_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex-1 text-center bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold py-2 px-4 rounded-lg transition text-sm"
+                >
+                  Project File
+                </a>
+                {f.doc_url && (
+                  <a
+                    href={f.doc_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 text-center border border-cyan-500/60 text-cyan-400 hover:bg-cyan-500/10 font-semibold py-2 px-4 rounded-lg transition text-sm"
+                  >
+                    Documentation
+                  </a>
+                )}
+              </div>
             </div>
           ))}
         </div>
