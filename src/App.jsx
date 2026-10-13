@@ -6,6 +6,9 @@ import Projects from './pages/Projects'
 import Certificates from './pages/Certificates'
 import Contact from './pages/Contact'
 import Admin from './pages/Admin'
+import About from './pages/About'
+import Skills from './pages/Skills'
+import Gallery from './pages/Gallery'
 
 export default function App() {
   return (
@@ -19,6 +22,9 @@ export default function App() {
             <Route path="/certificates" element={<Certificates />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/ishmael-admin-9f3a" element={<Admin />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/skills" element={<Skills />} />
+            <Route path="/gallery" element={<Gallery />} />
           </Routes>
         </main>
         <Footer />

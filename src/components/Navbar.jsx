@@ -7,10 +7,13 @@ export default function Navbar() {
   const { pathname } = useLocation()
 
   const links = [
-    { to: '/', label: 'Home' },
-    { to: '/projects', label: 'Projects' },
-    { to: '/certificates', label: 'Certificates' },
-    { to: '/contact', label: 'Contact' },
+  { to: '/', label: 'Home' },
+  { to: '/about', label: 'About' },
+  { to: '/skills', label: 'Skills' },
+  { to: '/projects', label: 'Projects' },
+  { to: '/certificates', label: 'Certificates' },
+  { to: '/gallery', label: 'Gallery' },
+  { to: '/contact', label: 'Contact' },
   ]
   const [resume, setResume] = useState(null)
 
